@@ -30,6 +30,12 @@ Fifteen fresh `chatgpt:gpt-5.6-sol-xhigh` samples—three for each of Sol's five
 
 The full [matrix report](docs/sol-original-failures-matrix.md) includes all 15 verifier outcomes, latency/session/tool/token metrics, audit and first-edit timing, production diffs, protected-restore evidence, failure modes, frozen hashes, and comparison confounders. Same task bodies and published verifiers; materially different effective harness. It is a harness study, not a leaderboard result.
 
+## Prompt-tuned max-effort follow-up
+
+A later three-sample follow-up tested **only** `as-purge-embedded-images` with `chatgpt:gpt-5.6-sol-max` and a system prompt that explicitly requires destruction/retention-closure reconciliation. It produced **2/3 full solves**: 5/5, 4/5, and 5/5 verifier tests.
+
+That is encouraging, but not attribution. **Two variables changed together** versus the prior 0/3 xhigh samples: the system prompt and effort (`xhigh` → `max`). With three stochastic samples per condition, this does not establish causality or replace the prior matrix. See the [prompt-tuned max-effort report](docs/as-purge-max-prompt-tuned.md) for exact run IDs, hashes, protocol, diffs, and the remaining historical-revision failure.
+
 ## Reproduce the result
 
 Requirements:
