@@ -1,176 +1,183 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-TASK=${1:-as-purge-embedded-images}
-AI_EVALS_COMMIT=${AI_EVALS_COMMIT:-8b4cab9165fc7878e4a2203f0966e45a1608cd09}
-WRITEBOOK_COMMIT=${WRITEBOOK_COMMIT:-e5563e260434c98425f3de80d45fddf0fdb76012}
-RUBY_VERSION=${RUBY_VERSION:-3.4.7}
-PROVIDER=${PROVIDER:-chatgpt:gpt-5.6-sol-xhigh}
-CACHE_DIR=${CACHE_DIR:-$ROOT/.cache}
-RUNS_DIR=${RUNS_DIR:-$ROOT/.runs}
-AGENT_DIR="$ROOT/agents/sol-xhigh-lifecycle-resource"
-RESOURCE_DIR="$ROOT/resources"
-STAMP=$(date +%Y%m%d-%H%M%S)
-RUN_DIR="$RUNS_DIR/$TASK-$STAMP"
-APP="$RUN_DIR/app"
-ART="$RUN_DIR/artifacts"
-APP_LINK_CREATED=0
-FINAL_EXIT=0
+require "digest"
+require "fileutils"
+require "open3"
+require "pathname"
+require "time"
 
-cleanup() {
-  if [[ "$APP_LINK_CREATED" == 1 ]] && [[ -L /app ]]; then
-    sudo rm -f /app
-  fi
-}
-trap cleanup EXIT INT TERM
+ROOT = Pathname(__dir__).join("..").realpath
+TASK = ARGV[0] || "as-purge-embedded-images"
+AI_EVALS_COMMIT = ENV.fetch("AI_EVALS_COMMIT", "8b4cab9165fc7878e4a2203f0966e45a1608cd09")
+WRITEBOOK_COMMIT = ENV.fetch("WRITEBOOK_COMMIT", "e5563e260434c98425f3de80d45fddf0fdb76012")
+TARGET_RUBY = ENV.fetch("RUBY_VERSION", "3.4.7")
+PROVIDER = ENV.fetch("PROVIDER", "chatgpt:gpt-5.6-sol-xhigh")
+CACHE_DIR = Pathname(ENV.fetch("CACHE_DIR", ROOT.join(".cache").to_s)).expand_path
+RUNS_DIR = Pathname(ENV.fetch("RUNS_DIR", ROOT.join(".runs").to_s)).expand_path
+AGENT_DIR = Pathname(ENV.fetch("AGENT_DIR", ROOT.join("agents/rails-lifecycle-developer").to_s)).expand_path
+STAMP = Time.now.strftime("%Y%m%d-%H%M%S")
+RUN_DIR = RUNS_DIR.join("#{TASK}-#{STAMP}")
+APP = RUN_DIR.join("app")
+ART = RUN_DIR.join("artifacts")
 
-mkdir -p "$CACHE_DIR" "$RUNS_DIR" "$RUN_DIR" "$ART"
+$app_link_created = false
+at_exit do
+  system("sudo", "rm", "-f", "/app") if $app_link_created && File.symlink?("/app")
+end
 
-clone_at() {
-  local url=$1 dir=$2 commit=$3
-  if [[ ! -d "$dir/.git" ]]; then
-    git clone "$url" "$dir"
-  fi
-  git -C "$dir" fetch --quiet origin "$commit" || true
-  git -C "$dir" checkout --quiet --detach "$commit"
-  git -C "$dir" reset --quiet --hard "$commit"
-  git -C "$dir" clean -qfdx
-}
+FileUtils.mkdir_p([CACHE_DIR, RUNS_DIR, RUN_DIR, ART])
 
-clone_at https://github.com/rails/ai-evals.git "$CACHE_DIR/ai-evals" "$AI_EVALS_COMMIT"
-clone_at https://github.com/basecamp/writebook.git "$CACHE_DIR/writebook" "$WRITEBOOK_COMMIT"
+def run!(*command, chdir: nil, out: nil, err: nil)
+  options = {}
+  options[:chdir] = chdir.to_s if chdir
+  options[:out] = out if out
+  options[:err] = err if err
+  return if system(*command.map(&:to_s), **options)
 
-TASK_DIR="$CACHE_DIR/ai-evals/tasks/$TASK"
-if [[ ! -f "$TASK_DIR/instruction.md" || ! -f "$TASK_DIR/verification_test.rb" ]]; then
-  echo "Unknown or incomplete task: $TASK" >&2
-  exit 2
-fi
+  raise "command failed (#{Process.last_status&.exitstatus}): #{command.join(' ')}"
+end
 
-python3 - "$TASK_DIR/instruction.md" "$ART/prompt.md" <<'PY'
-import sys
-raw = open(sys.argv[1], "rb").read()
-if not raw.startswith(b"---\n"):
-    raise SystemExit("instruction.md has no YAML front matter")
-end = raw.find(b"\n---\n", 4)
-if end < 0:
-    raise SystemExit("instruction.md has unterminated YAML front matter")
-open(sys.argv[2], "wb").write(raw[end + 5:])
-PY
+def capture!(*command, chdir: nil)
+  options = {}
+  options[:chdir] = chdir.to_s if chdir
+  stdout, stderr, status = Open3.capture3(*command.map(&:to_s), **options)
+  raise "command failed: #{command.join(' ')}\n#{stderr}" unless status.success?
 
-# Fresh application tree; the solver never sees the task/evaluator repository.
-git clone --quiet --shared "$CACHE_DIR/writebook" "$APP"
-git -C "$APP" checkout --quiet --detach "$WRITEBOOK_COMMIT"
-git -C "$APP" reset --quiet --hard "$WRITEBOOK_COMMIT"
-git -C "$APP" clean -qfdx
-if [[ -f "$TASK_DIR/environment.patch" ]]; then
-  git -C "$APP" apply --check "$TASK_DIR/environment.patch"
-  git -C "$APP" apply "$TASK_DIR/environment.patch"
-fi
+  stdout
+end
 
-git -C "$APP" config user.name "Rails lifecycle harness"
-git -C "$APP" config user.email "rails-lifecycle@invalid"
-git -C "$APP" add -A
-git -C "$APP" commit --quiet --allow-empty -m "Freeze $TASK environment"
+def clone_at(url, directory, commit)
+  run!("git", "clone", url, directory) unless directory.join(".git").directory?
+  system("git", "-C", directory.to_s, "fetch", "--quiet", "origin", commit)
+  run!("git", "-C", directory, "checkout", "--quiet", "--detach", commit)
+  run!("git", "-C", directory, "reset", "--quiet", "--hard", commit)
+  run!("git", "-C", directory, "clean", "-qfdx")
+end
 
-(
-  cd "$APP"
-  mise x "ruby@$RUBY_VERSION" -- bundle check || mise x "ruby@$RUBY_VERSION" -- bundle install
-  RAILS_ENV=test mise x "ruby@$RUBY_VERSION" -- bin/rails db:prepare
+clone_at("https://github.com/rails/ai-evals.git", CACHE_DIR.join("ai-evals"), AI_EVALS_COMMIT)
+clone_at("https://github.com/basecamp/writebook.git", CACHE_DIR.join("writebook"), WRITEBOOK_COMMIT)
 
-  mkdir -p .term-llm
-  python3 "$RESOURCE_DIR/rails_lifecycle_graph.py" > .term-llm/rails-lifecycle-graph.json
-  {
-    printf '# Supplied Rails lifecycle audit resource\n\n'
-    printf 'This is generic harness augmentation: frozen Rails reference + deterministic repository graph + process schema.\n\n'
-    cat "$RESOURCE_DIR/rails-lifecycle-reference.md"
-    printf '\n---\n\n'
-    cat "$RESOURCE_DIR/rails-lifecycle-process.md"
-    printf '\n---\n\n# Deterministic current-repository graph packet\n\n```json\n'
-    cat .term-llm/rails-lifecycle-graph.json
-    printf '```\n'
-  } > .term-llm/rails-lifecycle-audit.md
-  chmod 0444 .term-llm/rails-lifecycle-audit.md .term-llm/rails-lifecycle-graph.json
+task_dir = CACHE_DIR.join("ai-evals/tasks", TASK)
+instruction = task_dir.join("instruction.md")
+verifier = task_dir.join("verification_test.rb")
+abort "Unknown or incomplete task: #{TASK}" unless instruction.file? && verifier.file?
+
+raw_instruction = instruction.binread
+abort "instruction.md has no YAML front matter" unless raw_instruction.start_with?("---\n")
+front_matter_end = raw_instruction.index("\n---\n", 4)
+abort "instruction.md has unterminated YAML front matter" unless front_matter_end
+prompt = raw_instruction.byteslice((front_matter_end + 5)..)
+ART.join("prompt.md").binwrite(prompt)
+
+run!("git", "clone", "--quiet", "--shared", CACHE_DIR.join("writebook"), APP)
+run!("git", "-C", APP, "checkout", "--quiet", "--detach", WRITEBOOK_COMMIT)
+run!("git", "-C", APP, "reset", "--quiet", "--hard", WRITEBOOK_COMMIT)
+run!("git", "-C", APP, "clean", "-qfdx")
+environment_patch = task_dir.join("environment.patch")
+if environment_patch.file?
+  run!("git", "-C", APP, "apply", "--check", environment_patch)
+  run!("git", "-C", APP, "apply", environment_patch)
+end
+run!("git", "-C", APP, "config", "user.name", "Rails lifecycle harness")
+run!("git", "-C", APP, "config", "user.email", "rails-lifecycle@invalid")
+run!("git", "-C", APP, "add", "-A")
+run!("git", "-C", APP, "commit", "--quiet", "--allow-empty", "-m", "Freeze #{TASK} environment")
+
+unless system("mise", "x", "ruby@#{TARGET_RUBY}", "--", "bundle", "check", chdir: APP.to_s)
+  run!("mise", "x", "ruby@#{TARGET_RUBY}", "--", "bundle", "install", chdir: APP)
+end
+run!("mise", "x", "ruby@#{TARGET_RUBY}", "--", "bin/rails", "db:prepare", chdir: APP,
+     out: File::NULL, err: File::NULL)
+
+ART.join("resource-mode.txt").write("first-class custom tool bundled in agent: #{AGENT_DIR}\n")
+agent_files = AGENT_DIR.glob("**/*").select(&:file?).sort
+ART.join("frozen-agent-tool.sha256").write(
+  agent_files.map { |path| "#{Digest::SHA256.file(path).hexdigest}  #{path}\n" }.join
 )
 
-cp "$APP/.term-llm/rails-lifecycle-audit.md" "$ART/resource-supplied.md"
-cp "$APP/.term-llm/rails-lifecycle-graph.json" "$ART/graph.json"
-sha256sum \
-  "$RESOURCE_DIR/rails_lifecycle_graph.py" \
-  "$RESOURCE_DIR/rails-lifecycle-reference.md" \
-  "$RESOURCE_DIR/rails-lifecycle-process.md" \
-  "$ART/prompt.md" "$ART/resource-supplied.md" "$ART/graph.json" \
-  > "$ART/frozen-inputs.sha256"
+baseline = capture!("git", "-C", APP, "rev-parse", "HEAD").strip
+ART.join("baseline.txt").write("#{baseline}\n")
 
-git -C "$APP" add .term-llm
-git -C "$APP" commit --quiet -m "Freeze generic lifecycle resource"
-BASELINE=$(git -C "$APP" rev-parse HEAD)
-printf '%s\n' "$BASELINE" > "$ART/baseline.txt"
-
-cat > "$RUN_DIR/ask.py" <<'PY'
-import os
-import sys
-
-prompt_path, session_db, agent_dir, provider = sys.argv[1:]
-prompt = open(prompt_path, encoding="utf-8").read()
-args = [
-    "term-llm", "ask",
-    "--session-db", session_db,
-    "--agent", agent_dir,
-    "--provider", provider,
-    "--yolo", "--skills", "none", "--json", "--stats",
-    "--max-turns", "30", "--max-output-tokens", "4096",
-    "-f", ".term-llm/rails-lifecycle-audit.md",
-    prompt,
+ask = [
+  "term-llm", "ask",
+  "--session-db", ART.join("sessions.db").to_s,
+  "--agent", AGENT_DIR.to_s,
+  "--provider", PROVIDER,
+  "--yolo", "--skills", "none", "--json", "--stats",
+  "--max-turns", "30", "--max-output-tokens", "4096",
+  prompt.force_encoding("UTF-8")
 ]
-os.execvp(args[0], args)
-PY
 
-set +e
-(
-  cd "$APP"
-  timeout --foreground --signal=TERM --kill-after=15s 600s \
-    python3 "$RUN_DIR/ask.py" "$ART/prompt.md" "$ART/sessions.db" "$AGENT_DIR" "$PROVIDER"
-) > "$ART/raw.jsonl" 2> "$ART/stderr.txt"
-ASK_EXIT=$?
-set -e
-printf '%s\n' "$ASK_EXIT" > "$ART/ask-exit.txt"
+ask_exit = nil
+File.open(ART.join("raw.jsonl"), "wb") do |stdout|
+  File.open(ART.join("stderr.txt"), "wb") do |stderr|
+    pid = Process.spawn(*ask, chdir: APP.to_s, out: stdout, err: stderr, pgroup: true)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 600
+    loop do
+      waited = Process.waitpid2(pid, Process::WNOHANG)
+      if waited
+        ask_exit = waited.last.exitstatus || 1
+        break
+      end
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+        Process.kill("TERM", -pid) rescue nil
+        sleep 2
+        Process.kill("KILL", -pid) rescue nil
+        Process.wait(pid) rescue nil
+        ask_exit = 124
+        break
+      end
+      sleep 0.2
+    end
+  end
+end
+ART.join("ask-exit.txt").write("#{ask_exit}\n")
 
-git -C "$APP" diff --binary "$BASELINE" -- . ':(exclude).term-llm' > "$ART/solver.diff"
-git -C "$APP" diff --stat "$BASELINE" -- . ':(exclude).term-llm' > "$ART/solver-diff-stat.txt"
-git -C "$APP" status --short --branch > "$ART/solver-status.txt"
+File.open(ART.join("solver.diff"), "wb") do |file|
+  run!("git", "-C", APP, "diff", "--binary", baseline, "--", ".", ":(exclude).term-llm", out: file)
+end
+File.open(ART.join("solver-diff-stat.txt"), "wb") do |file|
+  run!("git", "-C", APP, "diff", "--stat", baseline, "--", ".", ":(exclude).term-llm", out: file)
+end
+ART.join("solver-status.txt").write(capture!("git", "-C", APP, "status", "--short", "--branch"))
 
-# Visible suite is useful even when the solver omitted it.
-set +e
-(cd "$APP" && mise x "ruby@$RUBY_VERSION" -- bin/rails test) > "$ART/visible-suite.txt" 2>&1
-VISIBLE_EXIT=$?
-set -e
-printf '%s\n' "$VISIBLE_EXIT" > "$ART/visible-suite-exit.txt"
+visible_exit = nil
+File.open(ART.join("visible-suite.txt"), "wb") do |stdout|
+  system("mise", "x", "ruby@#{TARGET_RUBY}", "--", "bin/rails", "test",
+         chdir: APP.to_s, out: stdout, err: [:child, :out])
+  visible_exit = Process.last_status&.exitstatus || 1
+end
+ART.join("visible-suite-exit.txt").write("#{visible_exit}\n")
 
-# Published verifiers expect the application at /app. Never replace a real path.
-if [[ -e /app || -L /app ]]; then
-  echo "Skipping published verifier: /app already exists; refusing to replace it." | tee "$ART/verifier.txt"
-  printf 'SKIPPED_APP_EXISTS\n' > "$ART/verifier-exit.txt"
-  FINAL_EXIT=3
+final_exit = 0
+if File.exist?("/app") || File.symlink?("/app")
+  message = "Skipping published verifier: /app already exists; refusing to replace it.\n"
+  warn message
+  ART.join("verifier.txt").write(message)
+  ART.join("verifier-exit.txt").write("SKIPPED_APP_EXISTS\n")
+  final_exit = 3
 else
-  sudo ln -s "$APP" /app
-  APP_LINK_CREATED=1
-  set +e
-  (cd "$APP" && mise x "ruby@$RUBY_VERSION" -- ruby "$TASK_DIR/verification_test.rb") > "$ART/verifier.txt" 2>&1
-  VERIFIER_EXIT=$?
-  set -e
-  printf '%s\n' "$VERIFIER_EXIT" > "$ART/verifier-exit.txt"
-  if [[ "$VERIFIER_EXIT" -ne 0 ]]; then FINAL_EXIT=1; fi
-  sudo rm -f /app
-  APP_LINK_CREATED=0
-fi
+  run!("sudo", "ln", "-s", APP, "/app")
+  $app_link_created = true
+  verifier_exit = nil
+  File.open(ART.join("verifier.txt"), "wb") do |stdout|
+    system("mise", "x", "ruby@#{TARGET_RUBY}", "--", "ruby", verifier.to_s,
+           chdir: APP.to_s, out: stdout, err: [:child, :out])
+    verifier_exit = Process.last_status&.exitstatus || 1
+  end
+  ART.join("verifier-exit.txt").write("#{verifier_exit}\n")
+  final_exit = 1 unless verifier_exit.zero?
+  run!("sudo", "rm", "-f", "/app")
+  $app_link_created = false
+end
 
-printf '\nRun directory: %s\n' "$RUN_DIR"
-printf '\nProduction diff:\n'
-cat "$ART/solver-diff-stat.txt"
-printf '\nVisible suite:\n'
-tail -8 "$ART/visible-suite.txt"
-printf '\nPublished verifier:\n'
-tail -12 "$ART/verifier.txt"
+puts "\nRun directory: #{RUN_DIR}"
+puts "\nProduction diff:"
+puts ART.join("solver-diff-stat.txt").read
+puts "\nVisible suite:"
+puts ART.join("visible-suite.txt").read.lines.last(8).join
+puts "\nPublished verifier:"
+puts ART.join("verifier.txt").read.lines.last(12).join
 
-exit "$FINAL_EXIT"
+exit final_exit

@@ -1,29 +1,42 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-APP=${1:-.}
-OUTPUT=${2:-$APP/.term-llm/rails-lifecycle-audit.md}
-GRAPH=${OUTPUT%.md}.json
+require "digest"
+require "fileutils"
+require "open3"
+require "pathname"
 
-mkdir -p "$(dirname "$OUTPUT")"
-(
-  cd "$APP"
-  python3 "$ROOT/resources/rails_lifecycle_graph.py"
-) > "$GRAPH"
+root = Pathname(__dir__).join("..").realpath
+app = Pathname(ARGV[0] || ".").expand_path
+output = Pathname(ARGV[1] || app.join(".term-llm/rails-lifecycle-audit.md")).expand_path
+graph = Pathname(output.to_s.sub(/\.md\z/, ".json"))
+scanner = root.join("resources/rails_lifecycle_graph.rb")
+reference = root.join("resources/rails-lifecycle-reference.md")
+process = root.join("resources/rails-lifecycle-process.md")
 
-{
-  printf '# Supplied Rails lifecycle audit resource\n\n'
-  printf 'This is generic harness augmentation: frozen Rails reference + deterministic repository graph + process schema.\n\n'
-  cat "$ROOT/resources/rails-lifecycle-reference.md"
-  printf '\n---\n\n'
-  cat "$ROOT/resources/rails-lifecycle-process.md"
-  printf '\n---\n\n# Deterministic current-repository graph packet\n\n```json\n'
-  cat "$GRAPH"
-  printf '```\n'
-} > "$OUTPUT"
+FileUtils.mkdir_p(output.dirname)
+json, stderr, status = Open3.capture3("ruby", scanner.to_s, chdir: app.to_s)
+abort(stderr.empty? ? "lifecycle scanner failed" : stderr) unless status.success?
+graph.write(json)
+output.write(<<~MARKDOWN)
+  # Supplied Rails lifecycle audit resource
 
-sha256sum "$ROOT/resources/rails_lifecycle_graph.py" \
-  "$ROOT/resources/rails-lifecycle-reference.md" \
-  "$ROOT/resources/rails-lifecycle-process.md" \
-  "$GRAPH" "$OUTPUT"
+  Generic frozen lifecycle reference + deterministic repository graph + process schema.
+
+  #{reference.read}
+
+  ---
+
+  #{process.read}
+
+  ---
+
+  # Deterministic current-repository graph packet
+
+  ```json
+  #{json}```
+MARKDOWN
+
+[scanner, reference, process, graph, output].each do |path|
+  puts "#{Digest::SHA256.file(path).hexdigest}  #{path}"
+end

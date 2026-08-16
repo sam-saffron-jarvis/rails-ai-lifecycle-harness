@@ -1,12 +1,18 @@
 # Rails AI lifecycle harness
 
-A reproducible Rails-aware context augmentation that turned `as-purge-embedded-images` from **0/3 with Sol xhigh** into a **5/5 verifier pass**.
+A Rails developer agent with normal term-llm file/search/edit/shell tools plus one first-class custom tool:
 
-The harness does three things before asking the model to edit:
+```text
+rails_lifecycle_audit()
+```
 
-1. scans the current Rails application for associations, attachments, callbacks, deletion calls, transactions, and job enqueue points;
-2. combines those repository facts with a compact, versioned Rails lifecycle reference;
-3. asks the agent to account for direct, indirect, and historical ownership edges before making a minimal patch.
+The tool deterministically scans the current Rails repository and returns a structured ownership/callback/deletion graph together with concise Rails lifecycle semantics. It helped turn `as-purge-embedded-images` from **0/3 with Sol xhigh** into a **5/5 verifier pass** in the original post-hoc sample.
+
+The agent:
+
+1. calls the lifecycle audit tool when the task involves deletion, cleanup, ownership, attachments, callbacks, transactions, or enqueue timing;
+2. uses normal `read_file`, `write_file`, `edit_file`, `glob`, `grep`, and `shell` tools to inspect, implement, and test;
+3. keeps a requirements ledger so every explicit observable outcome is mapped to its real persisted/rendered path and focused evidence.
 
 This is **harness augmentation**, not a corrected model-only benchmark score. The effective context differs from the published Rails benchmark.
 
@@ -15,7 +21,7 @@ This is **harness augmentation**, not a corrected model-only benchmark score. Th
 Requirements:
 
 - [`term-llm`](https://github.com/SamSaffron/term-llm) configured with ChatGPT access
-- `git`, Python 3, `mise`, and Ruby 3.4.7
+- `git`, `mise`, and Ruby 3.4.7
 - `sudo` permission to create the temporary `/app` verifier symlink
 - Linux or a compatible shell environment
 
@@ -70,7 +76,18 @@ Each invocation creates a fresh application workspace and preserves its artifact
 
 ## Use it on your own Rails application
 
-Generate the resource without running a benchmark:
+The benchmark runner is convenient, but the agent itself needs no preflight wrapper or attached file:
+
+```bash
+cd /path/to/rails-app
+term-llm ask \
+  --agent /path/to/rails-ai-lifecycle-harness/agents/rails-lifecycle-developer \
+  "Fix the lifecycle bug described here..."
+```
+
+The model calls `rails_lifecycle_audit` as a normal tool, then uses the built-in developer tools. Add `--yolo` only in a disposable workspace when you deliberately want unattended execution.
+
+Generate the same audit as a standalone Markdown artifact when useful:
 
 ```bash
 bin/build-audit /path/to/rails-app
@@ -81,16 +98,6 @@ This writes:
 ```text
 /path/to/rails-app/.term-llm/rails-lifecycle-audit.md
 /path/to/rails-app/.term-llm/rails-lifecycle-audit.json
-```
-
-Attach the Markdown file to an agent request or adapt the included agent:
-
-```bash
-cd /path/to/rails-app
-term-llm ask \
-  --agent /path/to/rails-ai-lifecycle-harness/agents/sol-xhigh-lifecycle-resource \
-  -f .term-llm/rails-lifecycle-audit.md \
-  "Fix the lifecycle bug described here..."
 ```
 
 The scanner is deterministic and uses only application source under:
@@ -113,7 +120,9 @@ The frozen generic resource was used unchanged for three post-hoc tasks:
 | `ar-archive-book-access` | Not part of the matched Sol hard control | **6/6** |
 | `aj-enqueue-after-commit` | Not part of the matched Sol hard control | **8/8** |
 
-The first genuinely held-out task was the next-hardest public eval, `ar-erase-account`. With the same frozen resource unchanged it reached **4/5 tests and 47 assertions with one failure**, not a full solve. The lifecycle graph captured indirect ownership and callback hazards but deliberately omitted scalar presentation fields; Sol preserved a public book yet failed to replace its displayed author byline. See [the held-out report](docs/heldout-ar-erase-account.md).
+The first genuinely held-out task was the next-hardest public eval, `ar-erase-account`. With the same frozen resource unchanged it reached **4/5 tests and 47 assertions with one failure**, not a full solve. The lifecycle graph captured indirect ownership and callback hazards, but Sol invented an unused `creator_name` method instead of updating the rendered `Book#author` byline. See [the held-out report](docs/heldout-ar-erase-account.md).
+
+A deliberately post-hoc process correction added a requirements ledger, call-site validation for every new API, and permission to add focused tests for uncovered explicit requirements. With resource facts unchanged, the next run passed **5/5 tests and 51 assertions**. That demonstrates the harness mistake was fixable; it is not a clean held-out score. The recommended custom-tool agent includes this requirements-ledger process.
 
 The three original resource-assisted samples fully passed their published verifier; the held-out sample did not. See [the full experiment report](docs/experiment-results.md) for hashes, isolation details, diffs, limitations, and provenance.
 
@@ -149,10 +158,10 @@ It does not emit an exact patch. The model still has to connect repository facts
 ## Repository layout
 
 ```text
-agents/     term-llm agent used by the experiment
-bin/        audit builder and reproducible eval runner
-resources/  deterministic scanner, Rails reference, process schema
-docs/       full experiment report
+agents/     normal developer agent and bundled Ruby custom lifecycle tool
+bin/        Ruby audit builder and reproducible eval runner
+resources/  Ruby scanner, Rails reference, process schema
+docs/       full experiment reports
 ```
 
 ## License

@@ -1,0 +1,28 @@
+name: rails-lifecycle-developer
+description: "Rails developer with a first-class lifecycle ownership audit tool"
+provider: chatgpt
+model: gpt-5.6-sol-xhigh
+
+tools:
+  enabled: [read_file, write_file, edit_file, glob, grep, shell]
+  custom:
+    - name: rails_lifecycle_audit
+      description: "Scan the current Rails repository and return a compact ownership, callback, attachment, deletion, transaction, and job lifecycle report plus concise Rails semantics. Call this first for deletion, cleanup, ownership, attachment, callback, transaction, or enqueue-timing bugs."
+      script: scripts/rails-lifecycle-audit.rb
+      input:
+        type: object
+        properties:
+          focus:
+            type: string
+            description: "Short task-derived focus, such as 'account erasure, retained public books, displayed byline'."
+        additionalProperties: false
+      timeout_seconds: 30
+
+read:
+  dirs: ["."]
+
+shell:
+  auto_run: false
+
+search: false
+max_turns: 30

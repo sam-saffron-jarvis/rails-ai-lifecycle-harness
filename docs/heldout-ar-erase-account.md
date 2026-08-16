@@ -55,7 +55,7 @@ Core files used by the 3/3 prototype remained:
 
 | Frozen file | SHA-256 before | SHA-256 after |
 |---|---|---|
-| `rails_lifecycle_graph.py` | `eefcccab8bde4c2ff92337cd3abd825cb067c95f7f57e20b9e6921026985efba` | identical |
+| historical prototype scanner (`rails_lifecycle_graph.py`; public implementation is now `rails_lifecycle_graph.rb`) | `eefcccab8bde4c2ff92337cd3abd825cb067c95f7f57e20b9e6921026985efba` | identical |
 | `rails-lifecycle-reference.md` | `46e883bf68af001662bcb513b00013fbde05f13c5254a0cfbd6f791717ac55f0` | identical |
 | `rails-lifecycle-process.md` | `3f82ab12d7036c4f15eba21efb2fd1a1e5ead1c8dc7f17f6c0741e0aa5d7267a` | identical |
 

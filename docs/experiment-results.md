@@ -95,7 +95,7 @@ It was verified against the exact Rails bundled by the frozen app: Rails `8.2.0.
 
 ### 2. Deterministic graph tool
 
-`rails-lifecycle-resource/rails_lifecycle_graph.py` scans only the current repository's:
+The historical experiment used `rails_lifecycle_graph.py`; the published harness now ships an equivalent Ruby implementation at `resources/rails_lifecycle_graph.rb`. It scans only the current repository's:
 
 - `app/models/**/*.rb`;
 - `app/jobs/**/*.rb`;
