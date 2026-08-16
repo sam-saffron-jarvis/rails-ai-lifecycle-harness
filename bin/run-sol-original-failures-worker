@@ -7,14 +7,14 @@ require "pathname"
 require "time"
 
 ROOT = Pathname(__dir__).join("..").realpath
-TASKS = %w[
+TASKS = ENV.fetch("TASKS", <<~TASKS).split.freeze
   as-purge-embedded-images
   sup-log-to-terminal
   ar-erase-account
   as-variant-processed-once
   av-toc-cache-per-role
-].freeze
-PROVIDER = "chatgpt:gpt-5.6-sol-xhigh"
+TASKS
+PROVIDER = ENV.fetch("PROVIDER", "chatgpt:gpt-5.6-sol-xhigh")
 
 replicate_dir = Pathname(ARGV.fetch(0) do
   abort "Usage: bin/run-sol-original-failures-worker REPLICATE_DIR"
