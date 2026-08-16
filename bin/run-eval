@@ -142,6 +142,14 @@ File.open(ART.join("solver-diff-stat.txt"), "wb") do |file|
 end
 ART.join("solver-status.txt").write(capture!("git", "-C", APP, "status", "--short", "--branch"))
 
+# Match the published grading protocol: preserve the solver diff above, then
+# restore protected surfaces so self-authored tests cannot affect the score.
+protected_paths = ["test", "bin", "config/environments/test.rb"]
+File.open(ART.join("grading-restore.txt"), "wb") do |log|
+  run!("git", "-C", APP, "restore", "--source", baseline, "--", *protected_paths, out: log, err: [:child, :out])
+  run!("git", "-C", APP, "clean", "-fd", "--", *protected_paths, out: log, err: [:child, :out])
+end
+
 visible_exit = nil
 File.open(ART.join("visible-suite.txt"), "wb") do |stdout|
   system("mise", "x", "ruby@#{TARGET_RUBY}", "--", "bin/rails", "test",

@@ -44,7 +44,7 @@ It pins the source inputs to:
 - `chatgpt:gpt-5.6-sol-xhigh`
 - 30 turns and 4,096 output tokens per call
 
-It clones into ignored `.cache/`, creates a fresh workspace under `.runs/`, freezes hashes before inference, invokes the benchmark body as the sole question, and exposes neither the verifier nor solution to the model. The published verifier runs only after the solver exits.
+It clones into ignored `.cache/`, creates a fresh workspace under `.runs/`, freezes agent/tool hashes before inference, invokes the benchmark body as the sole question, and exposes neither the verifier nor solution to the model. After preserving the solver diff, it restores `test/`, `bin/`, and `config/environments/test.rb` from the pre-agent snapshot before running the visible suite and published verifier, matching the benchmark's protected-surface grading protocol.
 
 The full-solve sample produced this production patch:
 
