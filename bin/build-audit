@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+APP=${1:-.}
+OUTPUT=${2:-$APP/.term-llm/rails-lifecycle-audit.md}
+GRAPH=${OUTPUT%.md}.json
+
+mkdir -p "$(dirname "$OUTPUT")"
+(
+  cd "$APP"
+  python3 "$ROOT/resources/rails_lifecycle_graph.py"
+) > "$GRAPH"
+
+{
+  printf '# Supplied Rails lifecycle audit resource\n\n'
+  printf 'This is generic harness augmentation: frozen Rails reference + deterministic repository graph + process schema.\n\n'
+  cat "$ROOT/resources/rails-lifecycle-reference.md"
+  printf '\n---\n\n'
+  cat "$ROOT/resources/rails-lifecycle-process.md"
+  printf '\n---\n\n# Deterministic current-repository graph packet\n\n```json\n'
+  cat "$GRAPH"
+  printf '```\n'
+} > "$OUTPUT"
+
+sha256sum "$ROOT/resources/rails_lifecycle_graph.py" \
+  "$ROOT/resources/rails-lifecycle-reference.md" \
+  "$ROOT/resources/rails-lifecycle-process.md" \
+  "$GRAPH" "$OUTPUT"

@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+TASK=${1:-as-purge-embedded-images}
+AI_EVALS_COMMIT=${AI_EVALS_COMMIT:-8b4cab9165fc7878e4a2203f0966e45a1608cd09}
+WRITEBOOK_COMMIT=${WRITEBOOK_COMMIT:-e5563e260434c98425f3de80d45fddf0fdb76012}
+RUBY_VERSION=${RUBY_VERSION:-3.4.7}
+PROVIDER=${PROVIDER:-chatgpt:gpt-5.6-sol-xhigh}
+CACHE_DIR=${CACHE_DIR:-$ROOT/.cache}
+RUNS_DIR=${RUNS_DIR:-$ROOT/.runs}
+AGENT_DIR="$ROOT/agents/sol-xhigh-lifecycle-resource"
+RESOURCE_DIR="$ROOT/resources"
+STAMP=$(date +%Y%m%d-%H%M%S)
+RUN_DIR="$RUNS_DIR/$TASK-$STAMP"
+APP="$RUN_DIR/app"
+ART="$RUN_DIR/artifacts"
+APP_LINK_CREATED=0
+FINAL_EXIT=0
+
+cleanup() {
+  if [[ "$APP_LINK_CREATED" == 1 ]] && [[ -L /app ]]; then
+    sudo rm -f /app
+  fi
+}
+trap cleanup EXIT INT TERM
+
+mkdir -p "$CACHE_DIR" "$RUNS_DIR" "$RUN_DIR" "$ART"
+
+clone_at() {
+  local url=$1 dir=$2 commit=$3
+  if [[ ! -d "$dir/.git" ]]; then
+    git clone "$url" "$dir"
+  fi
+  git -C "$dir" fetch --quiet origin "$commit" || true
+  git -C "$dir" checkout --quiet --detach "$commit"
+  git -C "$dir" reset --quiet --hard "$commit"
+  git -C "$dir" clean -qfdx
+}
+
+clone_at https://github.com/rails/ai-evals.git "$CACHE_DIR/ai-evals" "$AI_EVALS_COMMIT"
+clone_at https://github.com/basecamp/writebook.git "$CACHE_DIR/writebook" "$WRITEBOOK_COMMIT"
+
+TASK_DIR="$CACHE_DIR/ai-evals/tasks/$TASK"
+if [[ ! -f "$TASK_DIR/instruction.md" || ! -f "$TASK_DIR/verification_test.rb" ]]; then
+  echo "Unknown or incomplete task: $TASK" >&2
+  exit 2
+fi
+
+python3 - "$TASK_DIR/instruction.md" "$ART/prompt.md" <<'PY'
+import sys
+raw = open(sys.argv[1], "rb").read()
+if not raw.startswith(b"---\n"):
+    raise SystemExit("instruction.md has no YAML front matter")
+end = raw.find(b"\n---\n", 4)
+if end < 0:
+    raise SystemExit("instruction.md has unterminated YAML front matter")
+open(sys.argv[2], "wb").write(raw[end + 5:])
+PY
+
+# Fresh application tree; the solver never sees the task/evaluator repository.
+git clone --quiet --shared "$CACHE_DIR/writebook" "$APP"
+git -C "$APP" checkout --quiet --detach "$WRITEBOOK_COMMIT"
+git -C "$APP" reset --quiet --hard "$WRITEBOOK_COMMIT"
+git -C "$APP" clean -qfdx
+if [[ -f "$TASK_DIR/environment.patch" ]]; then
+  git -C "$APP" apply --check "$TASK_DIR/environment.patch"
+  git -C "$APP" apply "$TASK_DIR/environment.patch"
+fi
+
+git -C "$APP" config user.name "Rails lifecycle harness"
+git -C "$APP" config user.email "rails-lifecycle@invalid"
+git -C "$APP" add -A
+git -C "$APP" commit --quiet --allow-empty -m "Freeze $TASK environment"
+
+(
+  cd "$APP"
+  mise x "ruby@$RUBY_VERSION" -- bundle check || mise x "ruby@$RUBY_VERSION" -- bundle install
+  RAILS_ENV=test mise x "ruby@$RUBY_VERSION" -- bin/rails db:prepare
+
+  mkdir -p .term-llm
+  python3 "$RESOURCE_DIR/rails_lifecycle_graph.py" > .term-llm/rails-lifecycle-graph.json
+  {
+    printf '# Supplied Rails lifecycle audit resource\n\n'
+    printf 'This is generic harness augmentation: frozen Rails reference + deterministic repository graph + process schema.\n\n'
+    cat "$RESOURCE_DIR/rails-lifecycle-reference.md"
+    printf '\n---\n\n'
+    cat "$RESOURCE_DIR/rails-lifecycle-process.md"
+    printf '\n---\n\n# Deterministic current-repository graph packet\n\n```json\n'
+    cat .term-llm/rails-lifecycle-graph.json
+    printf '```\n'
+  } > .term-llm/rails-lifecycle-audit.md
+  chmod 0444 .term-llm/rails-lifecycle-audit.md .term-llm/rails-lifecycle-graph.json
+)
+
+cp "$APP/.term-llm/rails-lifecycle-audit.md" "$ART/resource-supplied.md"
+cp "$APP/.term-llm/rails-lifecycle-graph.json" "$ART/graph.json"
+sha256sum \
+  "$RESOURCE_DIR/rails_lifecycle_graph.py" \
+  "$RESOURCE_DIR/rails-lifecycle-reference.md" \
+  "$RESOURCE_DIR/rails-lifecycle-process.md" \
+  "$ART/prompt.md" "$ART/resource-supplied.md" "$ART/graph.json" \
+  > "$ART/frozen-inputs.sha256"
+
+git -C "$APP" add .term-llm
+git -C "$APP" commit --quiet -m "Freeze generic lifecycle resource"
+BASELINE=$(git -C "$APP" rev-parse HEAD)
+printf '%s\n' "$BASELINE" > "$ART/baseline.txt"
+
+cat > "$RUN_DIR/ask.py" <<'PY'
+import os
+import sys
+
+prompt_path, session_db, agent_dir, provider = sys.argv[1:]
+prompt = open(prompt_path, encoding="utf-8").read()
+args = [
+    "term-llm", "ask",
+    "--session-db", session_db,
+    "--agent", agent_dir,
+    "--provider", provider,
+    "--yolo", "--skills", "none", "--json", "--stats",
+    "--max-turns", "30", "--max-output-tokens", "4096",
+    "-f", ".term-llm/rails-lifecycle-audit.md",
+    prompt,
+]
+os.execvp(args[0], args)
+PY
+
+set +e
+(
+  cd "$APP"
+  timeout --foreground --signal=TERM --kill-after=15s 600s \
+    python3 "$RUN_DIR/ask.py" "$ART/prompt.md" "$ART/sessions.db" "$AGENT_DIR" "$PROVIDER"
+) > "$ART/raw.jsonl" 2> "$ART/stderr.txt"
+ASK_EXIT=$?
+set -e
+printf '%s\n' "$ASK_EXIT" > "$ART/ask-exit.txt"
+
+git -C "$APP" diff --binary "$BASELINE" -- . ':(exclude).term-llm' > "$ART/solver.diff"
+git -C "$APP" diff --stat "$BASELINE" -- . ':(exclude).term-llm' > "$ART/solver-diff-stat.txt"
+git -C "$APP" status --short --branch > "$ART/solver-status.txt"
+
+# Visible suite is useful even when the solver omitted it.
+set +e
+(cd "$APP" && mise x "ruby@$RUBY_VERSION" -- bin/rails test) > "$ART/visible-suite.txt" 2>&1
+VISIBLE_EXIT=$?
+set -e
+printf '%s\n' "$VISIBLE_EXIT" > "$ART/visible-suite-exit.txt"
+
+# Published verifiers expect the application at /app. Never replace a real path.
+if [[ -e /app || -L /app ]]; then
+  echo "Skipping published verifier: /app already exists; refusing to replace it." | tee "$ART/verifier.txt"
+  printf 'SKIPPED_APP_EXISTS\n' > "$ART/verifier-exit.txt"
+  FINAL_EXIT=3
+else
+  sudo ln -s "$APP" /app
+  APP_LINK_CREATED=1
+  set +e
+  (cd "$APP" && mise x "ruby@$RUBY_VERSION" -- ruby "$TASK_DIR/verification_test.rb") > "$ART/verifier.txt" 2>&1
+  VERIFIER_EXIT=$?
+  set -e
+  printf '%s\n' "$VERIFIER_EXIT" > "$ART/verifier-exit.txt"
+  if [[ "$VERIFIER_EXIT" -ne 0 ]]; then FINAL_EXIT=1; fi
+  sudo rm -f /app
+  APP_LINK_CREATED=0
+fi
+
+printf '\nRun directory: %s\n' "$RUN_DIR"
+printf '\nProduction diff:\n'
+cat "$ART/solver-diff-stat.txt"
+printf '\nVisible suite:\n'
+tail -8 "$ART/visible-suite.txt"
+printf '\nPublished verifier:\n'
+tail -12 "$ART/verifier.txt"
+
+exit "$FINAL_EXIT"
