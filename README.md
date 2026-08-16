@@ -10,11 +10,27 @@ The audit deterministically scans the current Rails repository and returns a str
 
 This is **harness augmentation**, not a model-only benchmark. Its effective context and tooling differ from the public Rails benchmark.
 
-## Latest neutral max-effort result
+## Latest runway-aware result
 
-The latest five-task view is **3/15 full solves** with `chatgpt:gpt-5.6-sol-max`—three fresh samples for each of Sol's five original published failure-task rows:
+The latest focused experiment is **6/6 full solves** with `chatgpt:gpt-5.6-sol-max`: three fresh samples each of the two tasks that the prior neutral 30-call batch scored 0/3.
 
-| Task | Published Sol rows | Latest neutral harness |
+| Task | Latest runway-aware harness | Prior neutral 30-call batch |
+|---|---:|---:|
+| `ar-erase-account` | **3/3** | 0/3 |
+| `av-toc-cache-per-role` | **3/3** | 0/3 |
+| **Total** | **6/6** | **0/6** |
+
+The [detailed report](docs/runway-two-tasks-max.md) preserves all six verifier rows, session and Jobs V2 identities, prompts and hashes, timing, turn/tool/token counts, first-production-edit timing, protected restore proof, diffs, and audit selection. All six visible suites and published verifiers passed after protected test restoration.
+
+This result changed **the prompt and runway together**. Compared with the prior neutral batch, the agent prompt was rewritten around early production delivery and task-appropriate audit selection, the LLM-call limit rose from 30 to 100, and the model timeout rose from 600 to 1,800 seconds. The task bodies, published verifiers, source pins, model resolution, max effort, 4,096-token per-call output limit, and grading protocol remained fixed.
+
+The extra runway was operationally necessary: every sample used 41–50 turns, and all three account asks ran for 617–744 seconds. It therefore prevented the old call cap in all six and the old wall timeout in all three account runs. It does **not** follow that runway alone caused 0/6 → 6/6, because the prompt changed at the same time and was adaptively tuned after observing these known-task failures. With `n=3` per task and no ablation, this is neither a causal claim nor a general reliability estimate.
+
+### Prior neutral five-task view
+
+The previous frozen neutral max-effort result remains **3/15 full solves**: [`as-purge-embedded-images` 2/3](docs/as-purge-max-neutral-closure.md) plus [the other four tasks 1/12](docs/other-four-max-neutral-matrix.md). That evidence is not erased or silently combined with the runway-aware batch.
+
+| Task | Published Sol rows | Neutral harness |
 |---|---:|---:|
 | `as-purge-embedded-images` | 0/3 | **2/3** |
 | `sup-log-to-terminal` | 0/3 | **0/3** |
@@ -23,16 +39,7 @@ The latest five-task view is **3/15 full solves** with `chatgpt:gpt-5.6-sol-max`
 | `av-toc-cache-per-role` | 2/3 | **0/3** |
 | **Total** | **5/15** | **3/15** |
 
-The arithmetic combines two batches under the same frozen neutral harness and model resolution:
-
-- [`as-purge-embedded-images`: 2/3](docs/as-purge-max-neutral-closure.md), launched first as a dedicated three-run batch;
-- [the other four tasks: 1/12](docs/other-four-max-neutral-matrix.md), launched later as three workers that each ran those four tasks sequentially.
-
-Both batches used harness commit `fffb3c88ab4032a3a5c42eb1d3b1347d593b01ae`, neutral system hash `f31f0592…`, `gpt-5.6-sol` at `effort=max`, the same source pins, and the same protected-surface grading protocol. They had different launch times and are not one concurrent 15-run launch.
-
-The single other-four full solve was the variant canonicalization fix (`format: :webp` → `format: "webp"`). All three logger samples missed dynamic severity propagation; all three account and all three TOC samples left no production change after protected test restoration. The detailed reports preserve every verifier row, session and Jobs V2 identity, timing, token count, diff, prompt hash, restore proof, and failure mode.
-
-This is not a victory lap. The prompt was adaptively developed after observing known failures, `n=3` per task is tiny and stochastic, and the harness differs materially from the public benchmark. The result is neither a causal claim nor a leaderboard correction.
+Those two neutral batches used harness commit `fffb3c88ab4032a3a5c42eb1d3b1347d593b01ae`, neutral system hash `f31f0592…`, `gpt-5.6-sol` at `effort=max`, 30 LLM calls, a 600-second timeout, the same source pins, and the same protected-surface grading protocol. The single other-four full solve was the variant canonicalization fix (`format: :webp` → `format: "webp"`). All three logger samples missed dynamic severity propagation; all three account and all three TOC samples left no production change after protected test restoration.
 
 ## How the agent works
 
@@ -81,7 +88,16 @@ The runner pins:
 
 - `rails/ai-evals` at `8b4cab9165fc7878e4a2203f0966e45a1608cd09`
 - Basecamp Writebook at `e5563e260434c98425f3de80d45fddf0fdb76012` (`v1.2.1`)
-- 30 LLM calls and 4,096 output tokens per call
+- 30 LLM calls, 4,096 output tokens per call, and a 600-second model timeout by default
+
+To reproduce the latest runway-aware configuration rather than the default neutral budget:
+
+```bash
+PROVIDER='chatgpt:gpt-5.6-sol-max' MAX_TURNS=100 ASK_TIMEOUT_SECONDS=1800 \
+  bin/run-eval ar-erase-account
+```
+
+`MAX_OUTPUT_TOKENS` remained at its 4,096 default.
 
 It creates a fresh ignored workspace, freezes agent/tool hashes before inference, invokes the exact post-front-matter benchmark body as the sole user question, and exposes neither verifier nor solution to the model. After preserving the solver diff, it restores `test/`, `bin/`, and `config/environments/test.rb` from the baseline before running the visible suite and published verifier.
 
@@ -113,9 +129,10 @@ It writes:
 
 ## Historical experiments
 
-Earlier work is retained as provenance, not as the current headline:
+Earlier work is retained as provenance, not silently folded into the current headline:
 
-- [Original five-task xhigh matrix](docs/sol-original-failures-matrix.md): **4/15** full solves. It used an older system prompt and `effort=xhigh`; it is not directly interchangeable with the latest neutral max result.
+- [Runway-aware account/TOC experiment](docs/runway-two-tasks-max.md): **6/6**, with both prompt and runway changed together after observing the known-task failures; not a controlled attribution experiment.
+- [Original five-task xhigh matrix](docs/sol-original-failures-matrix.md): **4/15** full solves. It used an older system prompt and `effort=xhigh`; it is not directly interchangeable with the latest runway-aware result.
 - [Prompt-tuned max-effort `as-purge` follow-up](docs/as-purge-max-prompt-tuned.md): **2/3**, but effort and prompt changed together.
 - [Neutral `as-purge` correction](docs/as-purge-max-neutral-closure.md): **2/3** after answer-shaped examples were removed; the aborted answer-shaped runs are explicitly unscored.
 - [Initial post-hoc experiments](docs/experiment-results.md): included a one-off `as-purge` full pass and resource-assisted controls. One good sample was not reliability.
