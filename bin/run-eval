@@ -19,6 +19,7 @@ ASK_TIMEOUT_SECONDS = Integer(ENV.fetch("ASK_TIMEOUT_SECONDS", "600"), 10)
 CACHE_DIR = Pathname(ENV.fetch("CACHE_DIR", ROOT.join(".cache").to_s)).expand_path
 RUNS_DIR = Pathname(ENV.fetch("RUNS_DIR", ROOT.join(".runs").to_s)).expand_path
 AGENT_DIR = Pathname(ENV.fetch("AGENT_DIR", ROOT.join("agents/rails-lifecycle-developer").to_s)).expand_path
+SUBAGENT_SOURCE = AGENT_DIR.join("subagents")
 STAMP = Time.now.strftime("%Y%m%d-%H%M%S")
 RUN_DIR = RUNS_DIR.join("#{TASK}-#{STAMP}")
 APP = RUN_DIR.join("app")
@@ -102,6 +103,14 @@ ART.join("frozen-agent-tool.sha256").write(
 baseline = capture!("git", "-C", APP, "rev-parse", "HEAD").strip
 ART.join("baseline.txt").write("#{baseline}\n")
 
+abort "bundled subagents missing: #{SUBAGENT_SOURCE}" unless SUBAGENT_SOURCE.directory?
+runtime_agents = APP.join("term-llm-agents")
+runtime_agents.mkpath
+SUBAGENT_SOURCE.children.each { |source| FileUtils.cp_r(source, runtime_agents) }
+ART.join("runtime-subagents.txt").write(
+  runtime_agents.children.sort.map { |path| "#{path.basename}\n" }.join
+)
+
 ask = [
   "term-llm", "ask",
   "--session-db", ART.join("sessions.db").to_s,
@@ -154,6 +163,7 @@ if session_id
          out: ART.join("session-export.txt").to_s, err: [:child, :out])
 end
 
+FileUtils.rm_rf(runtime_agents)
 File.open(ART.join("solver.diff"), "wb") do |file|
   run!("git", "-C", APP, "diff", "--binary", baseline, "--", ".", ":(exclude).term-llm", out: file)
 end

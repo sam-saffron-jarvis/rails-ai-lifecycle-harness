@@ -4,7 +4,7 @@ provider: chatgpt
 model: gpt-5.6-sol-xhigh
 
 tools:
-  enabled: [read_file, write_file, edit_file, glob, grep, shell]
+  enabled: [read_file, write_file, edit_file, glob, grep, shell, spawn_agent]
   custom:
     - name: rails_lifecycle_audit
       description: "Scan the current Rails repository and return a compact ownership, callback, attachment, deletion, transaction, and job lifecycle report plus concise Rails semantics. Call this first for deletion, cleanup, ownership, attachment, callback, transaction, or enqueue-timing bugs."
@@ -17,6 +17,17 @@ tools:
             description: "Short task-derived focus, such as 'account erasure, retained public books, displayed byline'."
         additionalProperties: false
       timeout_seconds: 30
+
+spawn:
+  allowed_agents:
+    - rails-state-analyst
+    - rails-red-test-author
+  agent_models:
+    rails-state-analyst: chatgpt:gpt-5.6-sol-max
+    rails-red-test-author: chatgpt:gpt-5.6-sol-max
+  max_parallel: 1
+  max_depth: 1
+  timeout: 1800
 
 read:
   dirs: ["."]

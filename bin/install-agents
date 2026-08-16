@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "pathname"
+
+root = Pathname(__dir__).join("..").realpath
+main = root.join("agents/rails-lifecycle-developer")
+agents = {
+  "rails-lifecycle-developer" => main,
+  "rails-state-analyst" => main.join("subagents/rails-state-analyst"),
+  "rails-red-test-author" => main.join("subagents/rails-red-test-author")
+}
+destination = Pathname(ENV.fetch("TERM_LLM_CONFIG_DIR", Pathname(Dir.home).join(".config/term-llm").to_s)).expand_path.join("agents")
+destination.mkpath
+
+agents.each do |name, source|
+  abort "missing bundled agent: #{source}" unless source.join("agent.yaml").file?
+  target = destination.join(name)
+  if target.symlink? && target.realpath == source
+    puts "already installed: #{name}"
+    next
+  end
+  abort "refusing to replace existing agent path: #{target}" if target.exist? || target.symlink?
+
+  FileUtils.ln_s(source, target)
+  puts "installed: #{name} -> #{source}"
+end
+
+puts "\nUse from any Rails repository:"
+puts '  term-llm ask --agent rails-lifecycle-developer "Describe the bug..."'
