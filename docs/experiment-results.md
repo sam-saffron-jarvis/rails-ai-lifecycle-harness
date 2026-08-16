@@ -1,5 +1,7 @@
 # Post-hoc Rails lifecycle-resource prototype
 
+> **Historical prototype.** These post-hoc and resource-assisted experiments are provenance, not part of the current [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md). See [history](history.md).
+
 Date: 2026-08-16 (Australia/Sydney)
 
 ## Answer

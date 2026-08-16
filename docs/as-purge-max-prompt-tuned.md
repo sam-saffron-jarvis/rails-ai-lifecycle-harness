@@ -1,5 +1,7 @@
 # Prompt-tuned max-effort `as-purge` follow-up
 
+> **Historical experiment.** Prompt and effort changed together here; these rows are not part of the current [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md). See [history](history.md).
+
 Date: 2026-08-16 (Australia/Sydney)
 
 ## Result

@@ -1,5 +1,7 @@
 # Held-out Rails lifecycle-resource validation: `ar-erase-account`
 
+> **Historical experiment.** The post-hoc corrected run here is not a clean held-out score and is not part of the current [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md). See [history](history.md).
+
 Date: 2026-08-16 (Australia/Sydney)
 
 ## Result

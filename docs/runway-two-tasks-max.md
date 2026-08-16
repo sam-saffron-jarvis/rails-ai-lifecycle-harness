@@ -1,5 +1,7 @@
 # Runway-aware two-task max-effort experiment
 
+> **Superseded as the headline report.** These six valid samples are retained as Batch A in the current [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md). See [history](history.md) for chronology.
+
 Date: 2026-08-17 (Australia/Sydney)
 
 ## Result

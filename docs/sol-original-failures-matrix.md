@@ -1,5 +1,7 @@
 # Sol original-failures matrix
 
+> **Historical experiment.** This report used an older system prompt and `effort=xhigh`; it is not part of the current [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md). See [history](history.md).
+
 Date: 2026-08-16 (Australia/Sydney)
 
 ## Result

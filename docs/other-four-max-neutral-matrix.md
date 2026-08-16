@@ -1,5 +1,7 @@
 # Neutral max-effort matrix: the other four Sol failure tasks
 
+> **Historical experiment.** This report uses the earlier neutral 30-call/600-second protocol. It is provenance, not part of the current [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md). See [history](history.md).
+
 Date: 2026-08-16 (Australia/Sydney)
 
 ## Result
