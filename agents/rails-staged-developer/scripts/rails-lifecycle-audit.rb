@@ -1,0 +1,1 @@
+../../rails-lifecycle-developer/scripts/rails-lifecycle-audit.rb

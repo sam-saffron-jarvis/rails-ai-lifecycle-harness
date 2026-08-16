@@ -1,0 +1,1 @@
+../../rails-lifecycle-developer/resources/rails-lifecycle-tool-reference.md

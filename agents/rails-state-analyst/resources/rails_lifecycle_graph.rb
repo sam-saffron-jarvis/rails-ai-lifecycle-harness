@@ -1,0 +1,1 @@
+../../rails-lifecycle-developer/resources/rails_lifecycle_graph.rb

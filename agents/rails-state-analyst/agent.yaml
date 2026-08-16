@@ -1,0 +1,27 @@
+name: rails-state-analyst
+description: "Read-only Rails state-space analyst for adversarial test planning"
+provider: chatgpt
+model: gpt-5.6-sol-max
+
+tools:
+  enabled: [read_file, write_file, glob, grep, shell]
+  custom:
+    - name: rails_lifecycle_audit
+      description: "Scan lifecycle ownership and callback paths when the task involves deletion, cleanup, ownership, attachments, transactions, or jobs."
+      script: scripts/rails-lifecycle-audit.rb
+      input:
+        type: object
+        properties:
+          focus:
+            type: string
+        additionalProperties: false
+      timeout_seconds: 30
+
+read:
+  dirs: ["."]
+
+shell:
+  auto_run: false
+
+search: false
+max_turns: 40
