@@ -36,6 +36,12 @@ A later three-sample follow-up tested **only** `as-purge-embedded-images` with `
 
 That is encouraging, but not attribution. **Two variables changed together** versus the prior 0/3 xhigh samples: the system prompt and effort (`xhigh` → `max`). With three stochastic samples per condition, this does not establish causality or replace the prior matrix. See the [prompt-tuned max-effort report](docs/as-purge-max-prompt-tuned.md) for exact run IDs, hashes, protocol, diffs, and the remaining historical-revision failure.
 
+## Neutral graph-closure correction
+
+The next three-sample run kept `chatgpt:gpt-5.6-sol-max` and **only** `as-purge-embedded-images`, but removed answer-shaped examples from the lifecycle prompt. The immediately preceding `a0268d5` prompt and its three runs were aborted and unscored because task-adjacent examples risked leakage; none of their partial artifacts or results were used.
+
+The corrected prompt at `9acc1cac98f45f19950e697369162449aa4aafc2` uses generic graph/transitive-closure gates without naming task-specific Rails constructs. It produced **2/3 full solves**: 4/5, 5/5, and 5/5 verifier tests. All three created the closure artifact before production edits and called the audit first; only one completed the mandatory final audit, while two exhausted the 30-call budget despite leaving verifier-green patches. This remains adaptively tuned on a known task with a tiny `n=3`, not a held-out or causal result. See the [neutral graph-closure report](docs/as-purge-max-neutral-closure.md) for cancellation accounting, exact Jobs V2 IDs, audit/closure timing, verifier outcomes, diffs, metrics, and hashes.
+
 ## Reproduce the result
 
 Requirements:
