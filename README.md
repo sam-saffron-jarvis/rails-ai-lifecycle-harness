@@ -6,157 +6,48 @@ A Rails developer agent with normal term-llm file/search/edit/shell tools plus o
 rails_lifecycle_audit()
 ```
 
-The tool deterministically scans the current Rails repository and returns a structured ownership/callback/deletion graph together with concise Rails lifecycle semantics. It produced a **5/5 verifier pass** for `as-purge-embedded-images` in the original post-hoc sample, but a later preregistered three-sample matrix scored **0/3** on that task. One good sample was not reliability.
+The audit deterministically scans the current Rails repository and returns a structured ownership, callback, deletion, and state-transition graph. The agent pairs it with a neutral transitive-closure ledger: every observable requirement and relevant reachable edge must have repository evidence, patch evidence, and focused test evidence before completion.
 
-The agent:
+This is **harness augmentation**, not a model-only benchmark. Its effective context and tooling differ from the public Rails benchmark.
 
-1. calls the lifecycle audit tool when the task involves deletion, cleanup, ownership, attachments, callbacks, transactions, or enqueue timing;
-2. uses normal `read_file`, `write_file`, `edit_file`, `glob`, `grep`, and `shell` tools to inspect, implement, and test;
-3. keeps a requirements ledger so every explicit observable outcome is mapped to its real persisted/rendered path and focused evidence.
+## Latest neutral max-effort result
 
-This is **harness augmentation**, not a corrected model-only benchmark score. The effective context differs from the published Rails benchmark.
+The latest five-task view is **3/15 full solves** with `chatgpt:gpt-5.6-sol-max`—three fresh samples for each of Sol's five original published failure-task rows:
 
-## Full original-failures matrix
-
-Fifteen fresh `chatgpt:gpt-5.6-sol-xhigh` samples—three for each of Sol's five original published failure-task rows—produced **4/15 full solves**, versus **5/15** in the published rows:
-
-| Task | Published Sol | Lifecycle harness |
+| Task | Published Sol rows | Latest neutral harness |
 |---|---:|---:|
-| `as-purge-embedded-images` | 0/3 | **0/3** |
+| `as-purge-embedded-images` | 0/3 | **2/3** |
 | `sup-log-to-terminal` | 0/3 | **0/3** |
-| `ar-erase-account` | 1/3 | **2/3** |
+| `ar-erase-account` | 1/3 | **0/3** |
 | `as-variant-processed-once` | 2/3 | **1/3** |
-| `av-toc-cache-per-role` | 2/3 | **1/3** |
+| `av-toc-cache-per-role` | 2/3 | **0/3** |
+| **Total** | **5/15** | **3/15** |
 
-The full [matrix report](docs/sol-original-failures-matrix.md) includes all 15 verifier outcomes, latency/session/tool/token metrics, audit and first-edit timing, production diffs, protected-restore evidence, failure modes, frozen hashes, and comparison confounders. Same task bodies and published verifiers; materially different effective harness. It is a harness study, not a leaderboard result.
+The arithmetic combines two batches under the same frozen neutral harness and model resolution:
 
-## Prompt-tuned max-effort follow-up
+- [`as-purge-embedded-images`: 2/3](docs/as-purge-max-neutral-closure.md), launched first as a dedicated three-run batch;
+- [the other four tasks: 1/12](docs/other-four-max-neutral-matrix.md), launched later as three workers that each ran those four tasks sequentially.
 
-A later three-sample follow-up tested **only** `as-purge-embedded-images` with `chatgpt:gpt-5.6-sol-max` and a system prompt that explicitly requires destruction/retention-closure reconciliation. It produced **2/3 full solves**: 5/5, 4/5, and 5/5 verifier tests.
+Both batches used harness commit `fffb3c88ab4032a3a5c42eb1d3b1347d593b01ae`, neutral system hash `f31f0592…`, `gpt-5.6-sol` at `effort=max`, the same source pins, and the same protected-surface grading protocol. They had different launch times and are not one concurrent 15-run launch.
 
-That is encouraging, but not attribution. **Two variables changed together** versus the prior 0/3 xhigh samples: the system prompt and effort (`xhigh` → `max`). With three stochastic samples per condition, this does not establish causality or replace the prior matrix. See the [prompt-tuned max-effort report](docs/as-purge-max-prompt-tuned.md) for exact run IDs, hashes, protocol, diffs, and the remaining historical-revision failure.
+The single other-four full solve was the variant canonicalization fix (`format: :webp` → `format: "webp"`). All three logger samples missed dynamic severity propagation; all three account and all three TOC samples left no production change after protected test restoration. The detailed reports preserve every verifier row, session and Jobs V2 identity, timing, token count, diff, prompt hash, restore proof, and failure mode.
 
-## Neutral graph-closure correction
+This is not a victory lap. The prompt was adaptively developed after observing known failures, `n=3` per task is tiny and stochastic, and the harness differs materially from the public benchmark. The result is neither a causal claim nor a leaderboard correction.
 
-The next three-sample run kept `chatgpt:gpt-5.6-sol-max` and **only** `as-purge-embedded-images`, but removed answer-shaped examples from the lifecycle prompt. The immediately preceding `a0268d5` prompt and its three runs were aborted and unscored because task-adjacent examples risked leakage; none of their partial artifacts or results were used.
+## How the agent works
 
-The corrected prompt at `9acc1cac98f45f19950e697369162449aa4aafc2` uses generic graph/transitive-closure gates without naming task-specific Rails constructs. It produced **2/3 full solves**: 4/5, 5/5, and 5/5 verifier tests. All three created the closure artifact before production edits and called the audit first; only one completed the mandatory final audit, while two exhausted the 30-call budget despite leaving verifier-green patches. This remains adaptively tuned on a known task with a tiny `n=3`, not a held-out or causal result. See the [neutral graph-closure report](docs/as-purge-max-neutral-closure.md) for cancellation accounting, exact Jobs V2 IDs, audit/closure timing, verifier outcomes, diffs, metrics, and hashes.
+For lifecycle-sensitive work, the agent:
 
-## Reproduce the result
+1. calls `rails_lifecycle_audit` before editing;
+2. verifies the audit against focused repository reads;
+3. writes `.term-llm/lifecycle-closure.md`, starting from every entity implied by an observable requirement and following relevant edges to transitive closure;
+4. blocks production edits while relevant rows are missing or unresolved;
+5. maps every requirement to persisted/rendered code and focused evidence;
+6. runs a final audit, inspects the diff and status, and runs the visible suite.
 
-Requirements:
+The scanner reads application source under `app/models`, `app/jobs`, `app/controllers`, `lib/rails_ext`, and database migrations/schema. It deliberately excludes tests, gems, evaluator files, task metadata, and solution artifacts. It emits repository facts and Rails lifecycle semantics, not an exact patch.
 
-- [`term-llm`](https://github.com/SamSaffron/term-llm) configured with ChatGPT access
-- `git`, `mise`, and Ruby 3.4.7
-- `sudo` permission to create the temporary `/app` verifier symlink
-- Linux or a compatible shell environment
-
-```bash
-git clone https://github.com/sam-saffron-jarvis/rails-ai-lifecycle-harness.git
-cd rails-ai-lifecycle-harness
-bin/run-eval as-purge-embedded-images
-```
-
-The runner defaults to `chatgpt:gpt-5.6-sol-xhigh`. Override it to compare another configured provider/model:
-
-```bash
-PROVIDER='ollama:qwen38-27b-fixed-v22-t10:latest' bin/run-eval as-purge-embedded-images
-```
-
-It pins the source inputs to:
-
-- `rails/ai-evals` at `8b4cab9165fc7878e4a2203f0966e45a1608cd09`
-- Basecamp Writebook at `e5563e260434c98425f3de80d45fddf0fdb76012` (`v1.2.1`)
-- `chatgpt:gpt-5.6-sol-xhigh`
-- 30 turns and 4,096 output tokens per call
-
-It clones into ignored `.cache/`, creates a fresh workspace under `.runs/`, freezes agent/tool hashes before inference, invokes the benchmark body as the sole question, and exposes neither the verifier nor solution to the model. After preserving the solver diff, it restores `test/`, `bin/`, and `config/environments/test.rb` from the pre-agent snapshot before running the visible suite and published verifier, matching the benchmark's protected-surface grading protocol.
-
-The full-solve sample produced this production patch:
-
-```diff
--has_many :edits, dependent: :delete_all
-+has_many :edits, dependent: :destroy
-```
-
-```diff
--has_many_attached :uploads, dependent: :destroy
-+has_many_attached :uploads, dependent: :purge_later
-```
-
-The full-solve sample's verifier result was:
-
-```text
-5 runs, 28 assertions, 0 failures, 0 errors, 0 skips
-```
-
-An independent end-to-end packaging smoke with the same frozen files scored **4/5**, making the stochasticity rather less theoretical. To collect three fresh samples:
-
-```bash
-for run in 1 2 3; do
-  bin/run-eval as-purge-embedded-images || true
-done
-```
-
-Each invocation creates a fresh application workspace and preserves its artifacts under `.runs/`. A non-green published verifier makes `bin/run-eval` exit nonzero.
-
-## Use it on your own Rails application
-
-The benchmark runner is convenient, but the agent itself needs no preflight wrapper or attached file:
-
-```bash
-cd /path/to/rails-app
-term-llm ask \
-  --agent /path/to/rails-ai-lifecycle-harness/agents/rails-lifecycle-developer \
-  "Fix the lifecycle bug described here..."
-```
-
-The model calls `rails_lifecycle_audit` as a normal tool, then uses the built-in developer tools. Add `--yolo` only in a disposable workspace when you deliberately want unattended execution.
-
-Generate the same audit as a standalone Markdown artifact when useful:
-
-```bash
-bin/build-audit /path/to/rails-app
-```
-
-This writes:
-
-```text
-/path/to/rails-app/.term-llm/rails-lifecycle-audit.md
-/path/to/rails-app/.term-llm/rails-lifecycle-audit.json
-```
-
-The scanner is deterministic and uses only application source under:
-
-- `app/models`
-- `app/jobs`
-- `app/controllers`
-- `lib/rails_ext`
-- `db/migrate` and `db/schema.rb` when present
-
-It deliberately excludes tests, gems, evaluator files, task metadata, and solution artifacts.
-
-## Experiment results
-
-The frozen generic resource was used unchanged for three post-hoc tasks:
-
-| Task | Without lifecycle resource | With lifecycle resource |
-|---|---:|---:|
-| `as-purge-embedded-images` | Sol xhigh 0/3 full; best 4/5 | **5/5** |
-| `ar-archive-book-access` | Not part of the matched Sol hard control | **6/6** |
-| `aj-enqueue-after-commit` | Not part of the matched Sol hard control | **8/8** |
-
-The first genuinely held-out task was the next-hardest public eval, `ar-erase-account`. With the same frozen resource unchanged it reached **4/5 tests and 47 assertions with one failure**, not a full solve. The lifecycle graph captured indirect ownership and callback hazards, but Sol invented an unused `creator_name` method instead of updating the rendered `Book#author` byline. See [the held-out report](docs/heldout-ar-erase-account.md).
-
-A deliberately post-hoc process correction added a requirements ledger, call-site validation for every new API, and permission to add focused tests for uncovered explicit requirements. With resource facts unchanged, the next run passed **5/5 tests and 51 assertions**. That demonstrates the harness mistake was fixable; it is not a clean held-out score. The recommended custom-tool agent includes this requirements-ledger process.
-
-The three original resource-assisted samples fully passed their published verifier; the held-out sample did not. See [the full experiment report](docs/experiment-results.md) for hashes, isolation details, diffs, limitations, and provenance.
-
-There was no literally universal failure in the August 2026 public table. `as-purge-embedded-images` was the hardest at **1/24** successful runs: seven models scored 0/3 and Muse scored 1/3.
-
-## What the scanner adds
-
-The JSON packet records facts such as:
+Example fact:
 
 ```json
 {
@@ -171,23 +62,84 @@ The JSON packet records facts such as:
 }
 ```
 
-It does not emit an exact patch. The model still has to connect repository facts to Rails semantics and implement the repair.
+## Reproduce a sample
+
+Requirements:
+
+- [`term-llm`](https://github.com/SamSaffron/term-llm) configured with ChatGPT access
+- `git`, `mise`, and Ruby 3.4.7
+- `sudo` permission to create the temporary `/app` verifier symlink
+- Linux or a compatible shell environment
+
+```bash
+git clone https://github.com/sam-saffron-jarvis/rails-ai-lifecycle-harness.git
+cd rails-ai-lifecycle-harness
+PROVIDER='chatgpt:gpt-5.6-sol-max' bin/run-eval as-purge-embedded-images
+```
+
+The runner pins:
+
+- `rails/ai-evals` at `8b4cab9165fc7878e4a2203f0966e45a1608cd09`
+- Basecamp Writebook at `e5563e260434c98425f3de80d45fddf0fdb76012` (`v1.2.1`)
+- 30 LLM calls and 4,096 output tokens per call
+
+It creates a fresh ignored workspace, freezes agent/tool hashes before inference, invokes the exact post-front-matter benchmark body as the sole user question, and exposes neither verifier nor solution to the model. After preserving the solver diff, it restores `test/`, `bin/`, and `config/environments/test.rb` from the baseline before running the visible suite and published verifier.
+
+The runner's default provider remains `chatgpt:gpt-5.6-sol-xhigh`; specify `PROVIDER` explicitly when reproducing the latest max-effort configuration. A non-green published verifier is a valid sample and makes `bin/run-eval` exit nonzero.
+
+## Use it on your Rails application
+
+```bash
+cd /path/to/rails-app
+term-llm ask \
+  --agent /path/to/rails-ai-lifecycle-harness/agents/rails-lifecycle-developer \
+  "Fix the lifecycle bug described here..."
+```
+
+Add `--yolo` only in a disposable workspace when you deliberately want unattended execution.
+
+Generate the standalone audit artifact with:
+
+```bash
+bin/build-audit /path/to/rails-app
+```
+
+It writes:
+
+```text
+/path/to/rails-app/.term-llm/rails-lifecycle-audit.md
+/path/to/rails-app/.term-llm/rails-lifecycle-audit.json
+```
+
+## Historical experiments
+
+Earlier work is retained as provenance, not as the current headline:
+
+- [Original five-task xhigh matrix](docs/sol-original-failures-matrix.md): **4/15** full solves. It used an older system prompt and `effort=xhigh`; it is not directly interchangeable with the latest neutral max result.
+- [Prompt-tuned max-effort `as-purge` follow-up](docs/as-purge-max-prompt-tuned.md): **2/3**, but effort and prompt changed together.
+- [Neutral `as-purge` correction](docs/as-purge-max-neutral-closure.md): **2/3** after answer-shaped examples were removed; the aborted answer-shaped runs are explicitly unscored.
+- [Initial post-hoc experiments](docs/experiment-results.md): included a one-off `as-purge` full pass and resource-assisted controls. One good sample was not reliability.
+- [First held-out account-erasure run](docs/heldout-ar-erase-account.md): 4/5 tests before a deliberately post-hoc process correction produced a later 5/5. The corrected run is not a clean held-out score.
+
+There was no literally universal failure in the August 2026 public table. `as-purge-embedded-images` was the hardest at 1/24 successful runs: seven models scored 0/3 and Muse scored 1/3.
 
 ## Caveats
 
-- This resource was designed after examining a lifecycle failure class. It is post-hoc and needs broader held-out validation.
-- The static Ruby scanner is intentionally simple. Metaprogrammed or dynamically declared associations may be missed.
-- Rails semantics in the reference are pinned to the benchmark's Rails `8.2.0.alpha` source. Review them before applying the resource to another Rails version.
-- `bin/run-eval` uses `--yolo` inside a disposable benchmark workspace. Do not point it at a repository containing work you cannot discard.
+- The lifecycle resource and closure process were designed after examining this failure class and then adaptively revised. Broader held-out validation is still needed.
+- Three samples per task are too few for a reliability estimate; model runs are stochastic.
+- The public benchmark and this harness differ in system context, tools, effort, step semantics, time budget, orchestration, and environment reconstruction. Matching task bodies and verifiers do not erase those confounders.
+- The static Ruby scanner is intentionally simple; metaprogrammed or dynamically declared associations may be missed.
+- Rails semantics in the bundled reference are pinned to the benchmark's Rails `8.2.0.alpha` source.
+- `bin/run-eval` uses unattended execution in a disposable workspace. Do not point it at work you cannot discard.
 - The verifier expects `/app`; the runner refuses to replace an existing path.
 
 ## Repository layout
 
 ```text
-agents/     normal developer agent and bundled Ruby custom lifecycle tool
-bin/        Ruby audit builder and reproducible eval runner
-resources/  Ruby scanner, Rails reference, process schema
-docs/       full experiment reports
+agents/     developer agent and bundled Ruby custom lifecycle tool
+bin/        audit builder and reproducible eval/matrix runners
+resources/  Ruby scanner, Rails reference, and process schema
+docs/       experiment reports and provenance
 ```
 
 ## License
