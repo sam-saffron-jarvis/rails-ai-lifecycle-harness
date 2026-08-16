@@ -1,0 +1,61 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+require "pathname"
+require "time"
+
+ROOT = Pathname(__dir__).join("..").realpath
+TASKS = %w[
+  as-purge-embedded-images
+  sup-log-to-terminal
+  ar-erase-account
+  as-variant-processed-once
+  av-toc-cache-per-role
+].freeze
+PROVIDER = "chatgpt:gpt-5.6-sol-xhigh"
+
+replicate_dir = Pathname(ARGV.fetch(0) do
+  abort "Usage: bin/run-sol-original-failures-worker REPLICATE_DIR"
+end).expand_path
+cache_dir = replicate_dir.join("cache")
+runs_dir = replicate_dir.join("runs")
+records_path = replicate_dir.join("worker.jsonl")
+replicate_dir.mkpath
+
+abort "Refusing to append to existing worker record: #{records_path}" if records_path.exist?
+
+File.open(records_path, "wb") do |records|
+  TASKS.each do |task|
+    before = runs_dir.directory? ? runs_dir.children.to_h { |path| [path.to_s, true] } : {}
+    started_at = Time.now.utc
+    stdout, stderr, status = Open3.capture3(
+      {
+        "CACHE_DIR" => cache_dir.to_s,
+        "RUNS_DIR" => runs_dir.to_s,
+        "PROVIDER" => PROVIDER
+      },
+      ROOT.join("bin/run-eval").to_s,
+      task,
+      chdir: ROOT.to_s
+    )
+    finished_at = Time.now.utc
+    created = runs_dir.directory? ? runs_dir.children.reject { |path| before.key?(path.to_s) } : []
+    run_directory = created.max_by { |path| path.stat.mtime }&.to_s
+
+    record = {
+      task: task,
+      started_at: started_at.iso8601(6),
+      finished_at: finished_at.iso8601(6),
+      wall_seconds: (finished_at - started_at).round(3),
+      exit_code: status.exitstatus,
+      run_directory: run_directory,
+      stdout: stdout,
+      stderr: stderr
+    }
+    records.puts(JSON.generate(record))
+    records.flush
+    puts "#{task}\texit=#{status.exitstatus}\trun=#{run_directory}"
+  end
+end

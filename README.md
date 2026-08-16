@@ -6,7 +6,7 @@ A Rails developer agent with normal term-llm file/search/edit/shell tools plus o
 rails_lifecycle_audit()
 ```
 
-The tool deterministically scans the current Rails repository and returns a structured ownership/callback/deletion graph together with concise Rails lifecycle semantics. It helped turn `as-purge-embedded-images` from **0/3 with Sol xhigh** into a **5/5 verifier pass** in the original post-hoc sample.
+The tool deterministically scans the current Rails repository and returns a structured ownership/callback/deletion graph together with concise Rails lifecycle semantics. It produced a **5/5 verifier pass** for `as-purge-embedded-images` in the original post-hoc sample, but a later preregistered three-sample matrix scored **0/3** on that task. One good sample was not reliability.
 
 The agent:
 
@@ -15,6 +15,20 @@ The agent:
 3. keeps a requirements ledger so every explicit observable outcome is mapped to its real persisted/rendered path and focused evidence.
 
 This is **harness augmentation**, not a corrected model-only benchmark score. The effective context differs from the published Rails benchmark.
+
+## Full original-failures matrix
+
+Fifteen fresh `chatgpt:gpt-5.6-sol-xhigh` samples—three for each of Sol's five original published failure-task rows—produced **4/15 full solves**, versus **7/15** in the published rows:
+
+| Task | Published Sol | Lifecycle harness |
+|---|---:|---:|
+| `as-purge-embedded-images` | 0/3 | **0/3** |
+| `sup-log-to-terminal` | 0/3 | **0/3** |
+| `ar-erase-account` | 1/3 | **2/3** |
+| `as-variant-processed-once` | 2/3 | **1/3** |
+| `av-toc-cache-per-role` | 2/3 | **1/3** |
+
+The full [matrix report](docs/sol-original-failures-matrix.md) includes all 15 verifier outcomes, latency/session/tool/token metrics, audit and first-edit timing, production diffs, protected-restore evidence, failure modes, frozen hashes, and comparison confounders. Same task bodies and published verifiers; materially different effective harness. It is a harness study, not a leaderboard result.
 
 ## Reproduce the result
 

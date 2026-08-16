@@ -166,6 +166,9 @@ File.open(ART.join("grading-restore.txt"), "wb") do |log|
   run!("git", "-C", APP, "restore", "--source", baseline, "--", *protected_paths, out: log, err: [:child, :out])
   run!("git", "-C", APP, "clean", "-fd", "--", *protected_paths, out: log, err: [:child, :out])
 end
+protected_status = capture!("git", "-C", APP, "status", "--short", "--", *protected_paths)
+ART.join("grading-protected-status.txt").write(protected_status)
+abort "protected grading surfaces differ from baseline after restore" unless protected_status.empty?
 
 visible_exit = nil
 File.open(ART.join("visible-suite.txt"), "wb") do |stdout|
@@ -176,25 +179,31 @@ end
 ART.join("visible-suite-exit.txt").write("#{visible_exit}\n")
 
 final_exit = 0
-if File.exist?("/app") || File.symlink?("/app")
-  message = "Skipping published verifier: /app already exists; refusing to replace it.\n"
-  warn message
-  ART.join("verifier.txt").write(message)
-  ART.join("verifier-exit.txt").write("SKIPPED_APP_EXISTS\n")
-  final_exit = 3
-else
-  run!("sudo", "ln", "-s", APP, "/app")
-  $app_link_created = true
-  verifier_exit = nil
-  File.open(ART.join("verifier.txt"), "wb") do |stdout|
-    system("mise", "x", "ruby@#{TARGET_RUBY}", "--", "ruby", verifier.to_s,
-           chdir: APP.to_s, out: stdout, err: [:child, :out])
-    verifier_exit = Process.last_status&.exitstatus || 1
+# Concurrent matrix workers may overlap model calls, but the published verifier
+# requires the process-global /app path. Serialize only that grading section.
+File.open("/tmp/rails-ai-lifecycle-harness-verifier.lock", File::RDWR | File::CREAT, 0o644) do |lock|
+  lock.flock(File::LOCK_EX)
+  ART.join("verifier-lock.txt").write("acquired #{Time.now.utc.iso8601(6)}\n")
+  if File.exist?("/app") || File.symlink?("/app")
+    message = "Skipping published verifier: /app already exists; refusing to replace it.\n"
+    warn message
+    ART.join("verifier.txt").write(message)
+    ART.join("verifier-exit.txt").write("SKIPPED_APP_EXISTS\n")
+    final_exit = 3
+  else
+    run!("sudo", "ln", "-s", APP, "/app")
+    $app_link_created = true
+    verifier_exit = nil
+    File.open(ART.join("verifier.txt"), "wb") do |stdout|
+      system("mise", "x", "ruby@#{TARGET_RUBY}", "--", "ruby", verifier.to_s,
+             chdir: APP.to_s, out: stdout, err: [:child, :out])
+      verifier_exit = Process.last_status&.exitstatus || 1
+    end
+    ART.join("verifier-exit.txt").write("#{verifier_exit}\n")
+    final_exit = 1 unless verifier_exit.zero?
+    run!("sudo", "rm", "-f", "/app")
+    $app_link_created = false
   end
-  ART.join("verifier-exit.txt").write("#{verifier_exit}\n")
-  final_exit = 1 unless verifier_exit.zero?
-  run!("sudo", "rm", "-f", "/app")
-  $app_link_created = false
 end
 
 puts "\nRun directory: #{RUN_DIR}"
