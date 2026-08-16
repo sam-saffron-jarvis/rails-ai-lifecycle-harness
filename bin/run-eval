@@ -13,6 +13,9 @@ AI_EVALS_COMMIT = ENV.fetch("AI_EVALS_COMMIT", "8b4cab9165fc7878e4a2203f0966e45a
 WRITEBOOK_COMMIT = ENV.fetch("WRITEBOOK_COMMIT", "e5563e260434c98425f3de80d45fddf0fdb76012")
 TARGET_RUBY = ENV.fetch("RUBY_VERSION", "3.4.7")
 PROVIDER = ENV.fetch("PROVIDER", "chatgpt:gpt-5.6-sol-xhigh")
+MAX_TURNS = Integer(ENV.fetch("MAX_TURNS", "30"), 10)
+MAX_OUTPUT_TOKENS = Integer(ENV.fetch("MAX_OUTPUT_TOKENS", "4096"), 10)
+ASK_TIMEOUT_SECONDS = Integer(ENV.fetch("ASK_TIMEOUT_SECONDS", "600"), 10)
 CACHE_DIR = Pathname(ENV.fetch("CACHE_DIR", ROOT.join(".cache").to_s)).expand_path
 RUNS_DIR = Pathname(ENV.fetch("RUNS_DIR", ROOT.join(".runs").to_s)).expand_path
 AGENT_DIR = Pathname(ENV.fetch("AGENT_DIR", ROOT.join("agents/rails-lifecycle-developer").to_s)).expand_path
@@ -105,7 +108,7 @@ ask = [
   "--agent", AGENT_DIR.to_s,
   "--provider", PROVIDER,
   "--yolo", "--skills", "none", "--json", "--stats",
-  "--max-turns", "30", "--max-output-tokens", "4096",
+  "--max-turns", MAX_TURNS.to_s, "--max-output-tokens", MAX_OUTPUT_TOKENS.to_s,
   prompt.force_encoding("UTF-8")
 ]
 
@@ -114,7 +117,7 @@ ask_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 File.open(ART.join("raw.jsonl"), "wb") do |stdout|
   File.open(ART.join("stderr.txt"), "wb") do |stderr|
     pid = Process.spawn(*ask, chdir: APP.to_s, out: stdout, err: stderr, pgroup: true)
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 600
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + ASK_TIMEOUT_SECONDS
     loop do
       waited = Process.waitpid2(pid, Process::WNOHANG)
       if waited
