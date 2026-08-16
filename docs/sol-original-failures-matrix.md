@@ -4,7 +4,7 @@ Date: 2026-08-16 (Australia/Sydney)
 
 ## Result
 
-The current public lifecycle harness fully solved **4 of 15** fresh `chatgpt:gpt-5.6-sol-xhigh` samples. The five published Sol rows totalled **7 of 15**.
+The current public lifecycle harness fully solved **4 of 15** fresh `chatgpt:gpt-5.6-sol-xhigh` samples. The five published Sol rows totalled **5 of 15**.
 
 | Task | Published Sol | This harness | Change |
 |---|---:|---:|---:|
@@ -13,7 +13,7 @@ The current public lifecycle harness fully solved **4 of 15** fresh `chatgpt:gpt
 | `ar-erase-account` | 1/3 | **2/3** | +1 |
 | `as-variant-processed-once` | 2/3 | **1/3** | -1 |
 | `av-toc-cache-per-role` | 2/3 | **1/3** | -1 |
-| **Total** | **7/15** | **4/15** | **-3** |
+| **Total** | **5/15** | **4/15** | **-1** |
 
 That is the useful result, not the hoped-for one. The requirements-ledger/custom-tool harness improved account erasure in this sample, but it did not reproduce the earlier post-hoc `as-purge` full pass and regressed two rows in binary reliability.
 

@@ -18,7 +18,7 @@ This is **harness augmentation**, not a corrected model-only benchmark score. Th
 
 ## Full original-failures matrix
 
-Fifteen fresh `chatgpt:gpt-5.6-sol-xhigh` samples—three for each of Sol's five original published failure-task rows—produced **4/15 full solves**, versus **7/15** in the published rows:
+Fifteen fresh `chatgpt:gpt-5.6-sol-xhigh` samples—three for each of Sol's five original published failure-task rows—produced **4/15 full solves**, versus **5/15** in the published rows:
 
 | Task | Published Sol | Lifecycle harness |
 |---|---:|---:|
