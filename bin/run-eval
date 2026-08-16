@@ -110,6 +110,7 @@ ask = [
 ]
 
 ask_exit = nil
+ask_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 File.open(ART.join("raw.jsonl"), "wb") do |stdout|
   File.open(ART.join("stderr.txt"), "wb") do |stderr|
     pid = Process.spawn(*ask, chdir: APP.to_s, out: stdout, err: stderr, pgroup: true)
@@ -133,6 +134,22 @@ File.open(ART.join("raw.jsonl"), "wb") do |stdout|
   end
 end
 ART.join("ask-exit.txt").write("#{ask_exit}\n")
+ART.join("ask-wall-seconds.txt").write(
+  format("%.3f\n", Process.clock_gettime(Process::CLOCK_MONOTONIC) - ask_started)
+)
+
+session_db = ART.join("sessions.db")
+File.open(ART.join("session.txt"), "wb") do |file|
+  system("term-llm", "sessions", "show", "--session-db", session_db.to_s, "1", out: file, err: [:child, :out])
+end
+session_id = ART.join("session.txt").read[/^Session: (.+)$/, 1]
+if session_id
+  system("term-llm", "sessions", "show", "--session-db", session_db.to_s, "--json", "1",
+         out: ART.join("session.json").to_s, err: ART.join("session-json.stderr").to_s)
+  system("term-llm", "sessions", "export", "--session-db", session_db.to_s,
+         "--include-system", "--include-reasoning", session_id, ART.join("session.md").to_s,
+         out: ART.join("session-export.txt").to_s, err: [:child, :out])
+end
 
 File.open(ART.join("solver.diff"), "wb") do |file|
   run!("git", "-C", APP, "diff", "--binary", baseline, "--", ".", ":(exclude).term-llm", out: file)
