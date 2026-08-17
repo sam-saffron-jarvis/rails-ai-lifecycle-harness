@@ -1,6 +1,10 @@
 # Experiment history
 
-The primary current result is the [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md): **8/15 full solves** across five tasks, three samples each, with 100 calls and a 1,800-second model timeout.
+The primary current result is the [corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md): **8/15 full solves** across five tasks, three samples each, with 100 calls and a 1,800-second model timeout. It remains the prominent scored result.
+
+A later [single-ask subagent experiment](single-ask-subagents-as-purge.md) was invalidated by generic child-model resolution and is unscored. Its three exact runs were retained without retry; their diagnostic verifier outcome was 0/3 full solves, but they do not modify the 8/15 matrix.
+
+The external three-call staged pipeline introduced at `244428f` was rejected, cancelled, and unscored. Commit `2204d06` replaced it with the intended architecture: one parent `term-llm ask`, with that parent synchronously orchestrating the bundled analyst and test-author children before implementing itself.
 
 This page keeps the chronology concise. Older detailed reports remain intact as provenance; their results use different prompts, budgets, effort settings, controls, or experimental status and must not be silently pooled with the current matrix.
 
@@ -14,5 +18,7 @@ This page keeps the chronology concise. Older detailed reports remain intact as 
 6. [Neutral max-effort other-four matrix](other-four-max-neutral-matrix.md) — **1/12**. Combined with the separately launched neutral purge batch, the historical neutral five-task view was **3/15**.
 7. [Runway-aware account/TOC batch](runway-two-tasks-max.md) — **6/6** after prompt and runway changed together; this report remains the detailed source for the first six rows of the current matrix.
 8. [Corrected runway-aware five-task matrix](corrected-runway-five-task-matrix.md) — **8/15**, combining that 6/6 batch with nine fresh purge/logger/variant outcomes under the same effective harness and disclosing the separate launch, host interruption, and exact missing-sample resume.
+9. External staged-pipeline attempt (`244428f`) — rejected, cancelled, and unscored; it made three model phases from Ruby and is not part of any result.
+10. [Single-ask subagent `as-purge` experiment](single-ask-subagents-as-purge.md) (`2204d06`) — one root ask per sample was confirmed, but generic child-model resolution caused 17/34/35 spawn calls and wrong completed child models. All three exact runs are invalid and unscored, with no retries; diagnostic verifier outcome **0/3**.
 
 There was no literally universal failure in the August 2026 public table. `as-purge-embedded-images` was the hardest at 1/24 successful public runs: seven models scored 0/3 and Muse scored 1/3.

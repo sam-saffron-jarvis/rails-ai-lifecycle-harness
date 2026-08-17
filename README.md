@@ -19,24 +19,21 @@ Every visible suite passed after protected test restoration: 179 runs, 549 asser
 
 The [full current report](docs/corrected-runway-five-task-matrix.md) preserves all 15 session rows, exact prompts and hashes, model resolution, limits, timings, turn/tool/token metrics, production diffs, verifier failures, protected-restore proof, Jobs V2 provenance, and the host-interruption resume record.
 
+A later [single-ask subagent experiment](docs/single-ask-subagents-as-purge.md) is **invalid and unscored**. It correctly made one top-level parent ask per sample, but a generic child-model resolution bug caused repeated spawn attempts and wrong child models; the exact three runs were retained and not retried. Their diagnostic verifier outcome was 0/3 full solves. This does not alter the corrected **8/15** result above.
+
 This is **harness augmentation**, not a model-only benchmark. Relative to the earlier neutral runs, the prompt and runway changed together, and the prompt was adaptively tuned after observing these known-task failures. There is no ablation. The result is descriptive—not a causal claim, general reliability estimate, corrected public benchmark score, or leaderboard claim.
 
 ## Current prompt architecture
 
-The agent's objective is the smallest complete production fix. Its process is deliberately runway-aware:
+Ordinary use is one parent invocation. `rails-lifecycle-developer` owns implementation and verification and synchronously orchestrates two project-bundled child roles in order:
 
-1. turn the request into observable outcomes, including behavior that must remain unchanged;
-2. classify the task before selecting tools;
-3. call `rails_lifecycle_audit` first for deletion, cleanup, ownership, attachment, callback, transaction, or enqueue-timing work;
-4. for other work, trace the actual execution path without calling the audit merely because it exists;
-5. inspect the production entry point, downstream consumers, and nearest existing tests narrowly;
-6. spend no more than roughly one third of available calls before the first production edit;
-7. patch production before writing a regression test, then use focused failures to repair the implementation;
-8. preserve a coherent production diff rather than spending the end of the run on more process.
+1. `rails-state-analyst` inspects persisted states, ownership, lifecycle timing, and counterexamples, then writes `.term-llm/state-analysis.md` without changing production or tests;
+2. `rails-red-test-author` reads that shared artifact, writes focused tests only under `test/`, and proves a meaningful baseline-red signal;
+3. the parent validates both boundaries, implements the production fix, makes the focused tests green, runs the visible suite, and reconciles the final diff.
 
-Investigation, notes, and self-authored tests are evidence for a fix; they are not substitutes for one. The prompt also reserves the final third of the call budget for implementation, verification, and repair.
+The parent has `spawn_agent`; the two allowed child definitions are bundled under `agents/rails-lifecycle-developer/subagents/`. They are not external runner phases. The deterministic `rails_lifecycle_audit` remains available to the analyst and parent for lifecycle-sensitive work.
 
-The custom tool is:
+The deterministic lifecycle tool remains available as:
 
 ```text
 rails_lifecycle_audit(focus: "task-derived lifecycle focus")
@@ -95,20 +92,30 @@ The runner pins:
 - Basecamp Writebook at `e5563e260434c98425f3de80d45fddf0fdb76012` (`v1.2.1`);
 - 100 LLM calls, 4,096 output tokens per call, and a 1,800-second model timeout when invoked as above.
 
-It creates a fresh ignored workspace, freezes agent/tool hashes before inference, sends the exact post-front-matter benchmark body as the sole user question, and exposes neither verifier nor solution to the model. After preserving `solver.diff`, it restores `test/`, `bin/`, and `config/environments/test.rb` from baseline before running the visible suite and published verifier.
+It creates a fresh ignored workspace, freezes agent/tool hashes before inference, sends the exact post-front-matter benchmark body as the sole user question, and exposes neither verifier nor solution to the model. Because benchmark target apps do not run the one-time global installer, the runner copies only the two bundled child definitions into that app's temporary `term-llm-agents/` registry before the ask, then removes the registry afterward. This staging lets the parent's `spawn_agent` resolve project-local children; it does **not** call analysis, test, or implementation model phases externally. After preserving `solver.diff`, the runner restores `test/`, `bin/`, and `config/environments/test.rb` from baseline before running the visible suite and published verifier.
 
 The script's defaults remain a smaller general-purpose budget and `chatgpt:gpt-5.6-sol-xhigh`; specify all four environment variables above to reproduce the current matrix. A non-green verifier is a valid sample and makes `bin/run-eval` exit nonzero. Do not retry it merely to improve the score.
 
 ## Use it on your Rails application
 
+Install the parent and both bundled child definitions once:
+
+```bash
+cd /path/to/rails-ai-lifecycle-harness
+bin/install-agents
+```
+
+Then ordinary use from a Rails repository is exactly one parent ask:
+
 ```bash
 cd /path/to/rails-app
-term-llm ask \
-  --agent /path/to/rails-ai-lifecycle-harness/agents/rails-lifecycle-developer \
+term-llm ask --agent rails-lifecycle-developer \
   "Fix the lifecycle bug described here..."
 ```
 
-Add `--yolo` only in a disposable workspace when you deliberately want unattended execution.
+The parent invokes both child roles synchronously in the same workspace, then implements and verifies itself. There is no external three-call pipeline. Add `--yolo` only in a disposable workspace when you deliberately want unattended execution.
+
+The August 2026 experiment found a term-llm child-model resolution defect that caused parents to probe model names rather than honor the configured mapping. See the [invalid run report](docs/single-ask-subagents-as-purge.md); do not treat those samples as evidence that the command above currently guarantees exact child-model compliance.
 
 Generate the standalone audit artifacts with:
 
